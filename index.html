@@ -351,6 +351,14 @@
       font-size: 13px;
       color: var(--text);
       line-height: 1.5;
+      border: 1.5px solid transparent;
+      transition: background .15s, border-color .15s;
+    }
+    .q-option.correct {
+      background: #f0fdf4;
+      border-color: #6ee7b7;
+      color: #065f46;
+      font-weight: 600;
     }
     .q-option-label {
       width: 22px; height: 22px;
@@ -362,8 +370,27 @@
       font-weight: 700;
       flex-shrink: 0;
       margin-top: 1px;
+      transition: background .15s;
+    }
+    .q-option.correct .q-option-label {
+      background: #10b981;
     }
     .q-option-text { word-break: break-all; }
+    /* answer text for non-option answers */
+    .q-answer-text {
+      margin-top: 10px;
+      border-top: 1px dashed var(--border);
+      padding-top: 8px;
+      font-size: 13px;
+      color: #065f46;
+      font-weight: 600;
+    }
+    .q-answer-text span {
+      background: #d1fae5;
+      border-radius: 6px;
+      padding: 2px 8px;
+      margin-left: 4px;
+    }
 
     /* ========== EMPTY / LOADING ========== */
     .empty-state {
@@ -428,63 +455,6 @@
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
     ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
-
-    /* ========== ANSWER ========== */
-    .q-answer-wrap {
-      margin-top: 10px;
-      border-top: 1px dashed var(--border);
-      padding-top: 10px;
-    }
-    .btn-answer {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      height: 30px;
-      padding: 0 12px;
-      border: 1.5px solid #10b981;
-      border-radius: 20px;
-      background: #f0fdf4;
-      color: #065f46;
-      font-size: 12px;
-      font-weight: 600;
-      cursor: pointer;
-      font-family: inherit;
-      transition: all .15s;
-    }
-    .btn-answer:hover { background: #d1fae5; }
-    .answer-box {
-      display: none;
-      margin-top: 8px;
-      background: linear-gradient(135deg, #f0fdf4, #ecfdf5);
-      border: 1.5px solid #6ee7b7;
-      border-radius: 10px;
-      padding: 10px 14px;
-      font-size: 14px;
-      font-weight: 700;
-      color: #065f46;
-      letter-spacing: .5px;
-      animation: fadeIn .18s ease;
-    }
-    .answer-box.show { display: block; }
-    .answer-label { font-size: 11px; font-weight: 600; color: #10b981; margin-bottom: 2px; text-transform: uppercase; letter-spacing: .5px; }
-
-    /* global answer toggle */
-    .btn-global-answer {
-      height: 34px;
-      padding: 0 14px;
-      border: 1.5px solid #10b981;
-      border-radius: 8px;
-      background: #f0fdf4;
-      color: #065f46;
-      font-size: 13px;
-      font-weight: 600;
-      cursor: pointer;
-      font-family: inherit;
-      transition: all .15s;
-      white-space: nowrap;
-    }
-    .btn-global-answer:hover { background: #d1fae5; }
-    .btn-global-answer.active { background: #10b981; color: #fff; border-color: #10b981; }
 
     /* ========== OCR BUTTON ========== */
     .btn-ocr {
@@ -760,12 +730,9 @@
     <!-- RESULTS HEADER -->
     <div class="results-header">
       <div class="results-count" id="results-count"></div>
-      <div style="display:flex;align-items:center;gap:8px">
-        <button class="btn-global-answer" id="btn-global-answer" onclick="toggleAllAnswers()" style="display:none">✅ 显示所有答案</button>
-        <div class="view-toggle">
-          <button class="view-btn active" id="btn-grid" title="网格视图" onclick="setView('grid')">⊞</button>
-          <button class="view-btn" id="btn-list" title="列表视图" onclick="setView('list')">☰</button>
-        </div>
+      <div class="view-toggle">
+        <button class="view-btn active" id="btn-grid" title="网格视图" onclick="setView('grid')">⊞</button>
+        <button class="view-btn" id="btn-list" title="列表视图" onclick="setView('list')">☰</button>
       </div>
     </div>
 
@@ -836,7 +803,6 @@ let ocrWorker = null;
 const COL = { type:0, diff:1, cat:2, stem:3, opts:[4,5,6,7,8,9] };
 const OPT_LABELS = ['A','B','C','D','E','F'];
 let answerCol = -1;       // detected answer column index, -1 = none
-let showAllAnswers = false;
 
 // ============ File input ============
 document.getElementById('file-input').addEventListener('change', e => {
@@ -906,17 +872,7 @@ function loadFile(file) {
       buildStats();
       applyFilters();
       showMainArea();
-      // Show global answer button only if answer column exists
-      const globalAnsBtn = document.getElementById('btn-global-answer');
-      if (answerCol >= 0 && allData.some(d => d.answer)) {
-        globalAnsBtn.style.display = 'inline-flex';
-        const colLetter = String.fromCharCode(65 + answerCol);
-        globalAnsBtn.title = `答案列：第${colLetter}列（索引${answerCol}）`;
-      } else {
-        globalAnsBtn.style.display = 'none';
-      }
-      showAllAnswers = false;
-      showToast(`✅ 成功导入 ${allData.length} 道题目${answerCol >= 0 ? '（含答案列）' : ''}`);
+      showToast(`✅ 成功导入 ${allData.length} 道题目${answerCol >= 0 ? '（含答案）' : ''}`);
     } catch (err) {
       showToast('❌ 文件解析失败：' + err.message);
     }
@@ -1042,27 +998,33 @@ function renderPage() {
   grid.innerHTML = pageItems.map((d, idx) => buildCard(d, start + idx + 1, kw)).join('');
 }
 
+// Parse answer string -> set of correct option letters e.g. 'AB' -> {'A','B'}
+function parseAnswerKeys(answer) {
+  return new Set([...answer.toUpperCase().matchAll(/[A-F]/g)].map(m => m[0]));
+}
+
 function buildCard(d, num, kw) {
   const diffClass = ['简单','中等','困难'].includes(d.diff) ? `chip-diff-${d.diff}` : 'chip-diff-default';
   const stem = kw ? highlight(d.stem, kw) : escHtml(d.stem);
+  const hasAnswer = d.answer && d.answer !== '';
+  const correctKeys = hasAnswer ? parseAnswerKeys(d.answer) : new Set();
+  // Check if answer maps to option letters
+  const answerMapsToOptions = correctKeys.size > 0;
+
   const opts = d.opts.map((o, i) => {
+    const label = OPT_LABELS[i];
+    const isCorrect = answerMapsToOptions && correctKeys.has(label);
     const txt = kw ? highlight(o, kw) : escHtml(o);
-    return `<div class="q-option">
-      <div class="q-option-label">${OPT_LABELS[i]}</div>
-      <div class="q-option-text">${txt}</div>
+    return `<div class="q-option${isCorrect ? ' correct' : ''}">
+      <div class="q-option-label">${label}</div>
+      <div class="q-option-text">${txt}${isCorrect ? ' ✓' : ''}</div>
     </div>`;
   }).join('');
-  const hasAnswer = d.answer && d.answer !== '';
-  const answerHtml = hasAnswer ? `
-    <div class="q-answer-wrap">
-      <button class="btn-answer" onclick="toggleAnswer(this)">
-        <span>👁</span><span>显示答案</span>
-      </button>
-      <div class="answer-box ${showAllAnswers ? 'show' : ''}">
-        <div class="answer-label">正确答案</div>
-        ${escHtml(d.answer)}
-      </div>
-    </div>` : '';
+
+  // If answer doesn't match any option letter (e.g. free text), show it below
+  const answerTextHtml = hasAnswer && !answerMapsToOptions
+    ? `<div class="q-answer-text">正确答案：<span>${escHtml(d.answer)}</span></div>` : '';
+
   return `
   <div class="q-card">
     <div class="q-card-header">
@@ -1074,32 +1036,9 @@ function buildCard(d, num, kw) {
     <div class="q-card-body">
       <div class="q-stem">${stem}</div>
       ${opts ? `<div class="q-options">${opts}</div>` : ''}
-      ${answerHtml}
+      ${answerTextHtml}
     </div>
   </div>`;
-}
-
-function toggleAnswer(btn) {
-  const box = btn.nextElementSibling;
-  const showing = box.classList.toggle('show');
-  btn.querySelector('span:last-child').textContent = showing ? '隐藏答案' : '显示答案';
-  btn.querySelector('span:first-child').textContent = showing ? '🙈' : '👁';
-}
-
-function toggleAllAnswers() {
-  showAllAnswers = !showAllAnswers;
-  const btn = document.getElementById('btn-global-answer');
-  btn.textContent = showAllAnswers ? '🙈 隐藏所有答案' : '✅ 显示所有答案';
-  btn.classList.toggle('active', showAllAnswers);
-  document.querySelectorAll('.answer-box').forEach(box => {
-    box.classList.toggle('show', showAllAnswers);
-  });
-  document.querySelectorAll('.btn-answer span:last-child').forEach(s => {
-    s.textContent = showAllAnswers ? '隐藏答案' : '显示答案';
-  });
-  document.querySelectorAll('.btn-answer span:first-child').forEach(s => {
-    s.textContent = showAllAnswers ? '🙈' : '👁';
-  });
 }
 
 function highlight(text, kw) {
